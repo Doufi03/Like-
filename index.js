@@ -9,8 +9,8 @@ const nodemailer = require('nodemailer');
 const app = express();
 app.use(express.json());
 
-const mongoUri = 'mongodb+srv://fifaadmin:<Ossama00.@>@cluster0.5ne5vv7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'; // Update with your MongoDB connection string
-const dbName = 'fifa'; // Update with your database name
+const mongoUri = 'mongodb+srv://fifaadmin:Ossama00.%40@cluster0.5ne5vv7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const dbName = 'fifa';
 
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36';
 
@@ -471,3 +471,4 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });
+
